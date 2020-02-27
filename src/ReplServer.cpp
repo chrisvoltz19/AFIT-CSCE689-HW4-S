@@ -48,8 +48,8 @@ ReplServer::~ReplServer() {
  *                   by _time_mult to speed up or slow down
  **********************************************************************************************/
 
-time_t ReplServer::getAdjustedTime() {
-   return static_cast<time_t>((time(NULL) - _start_time) * _time_mult);
+double ReplServer::getAdjustedTime() {
+   return static_cast<double>(time(nullptr) - _start_time) * _time_mult;
 }
 
 /**********************************************************************************************

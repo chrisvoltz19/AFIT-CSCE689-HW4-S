@@ -13,6 +13,9 @@
 #include <crypto++/rijndael.h>
 #include <crypto++/gcm.h>
 #include <crypto++/aes.h>
+// Voltz include 
+#include <random>
+
 
 using namespace CryptoPP;
 
@@ -91,7 +94,9 @@ bool TCPConn::accept(SocketFD &server) {
 
 
    // Set the state as waiting for the authorization packet
-   _status = s_connected;
+   // Voltz change 
+   //_status = s_connected;
+   _status = s_schallenge;
    _connected = true;
    return results;
 }
@@ -177,6 +182,36 @@ void TCPConn::handleConnection() {
             sendSID();
             break;
 
+	 // Server: Send first challenge Voltz
+	 case s_schallenge:
+            authChallenge(_auth_challenge_s);
+            break;
+
+         // Client: Encrypt first challenge and send it back Voltz
+         case s_cproof:
+            authResponse();
+            break;
+            
+	 // Server: Verifies the encrypted response from client Voltz
+	 case s_scheck:
+            authCheck();
+            break;
+	    
+         // Client: Sends challenge to server Voltz
+         case s_cchallenge:
+            authChallenge(_auth_challenge_c);
+            break;
+
+         // Server: respond with encrypted challenge and send it back Voltz
+         case s_sproof:
+            authResponse();
+            break;
+
+         // Client: Verify the encrypted response from server Voltz
+         case s_ccheck:
+            authCheck();
+	    break;
+
          // Server: Wait for the SID from a newly-connected client, then send our SID
          case s_connected:
             waitForSID();
@@ -225,6 +260,140 @@ void TCPConn::sendSID() {
    sendData(buf);
 
    _status = s_datatx; 
+}
+
+/**********************************************************************************************
+ * getRandBits  - Creates random bits useful for sending challenges. Voltz
+ * 
+ *		This method is based on generating bits from a discussion with LT Josh Larson
+ *              and a reference from cplusplus.com/reference/random/
+ *              and a reference from en.cppreference.com/w/cpp/numeric/random
+ *    
+ **********************************************************************************************/
+
+void TCPConn::getRandBits(std::vector<uint8_t> dest) {
+   int size = 16;
+   // initialize c++ way of creating random numbers 
+   std::default_random_engine byteGen{std::random_device{}()};
+   std::uniform_int_distribution<uint8_t> dist(0,255);
+
+   // ensure the vector is the right size 
+   dest.reserve(size);
+   while(dest.size() < size)
+   {
+      dest.emplace_back(0);
+   }   
+
+   // assign the random charavters 
+   for(auto & b : dest){
+	b = dist(byteGen);
+   }
+    
+}
+
+/**********************************************************************************************
+ * authChallenge  - create a challenge and send it to other side of connection Voltz
+ * 
+ *             dest: the vector that the challenge will be stored in (server or client challenge)
+ *    
+ **********************************************************************************************/
+
+void TCPConn::authChallenge(std::vector<uint8_t> dest) {
+   //  put random bits into challenge 
+   getRandBits(dest);
+   std::vector<uint8_t> buf(dest.begin(), dest.end()); 
+   
+   // send the info to the attempted connection, not encrypted 
+   wrapCmd(buf, c_auth, c_endauth);
+   sendData(buf);
+
+   // set the status to the next step
+   if(_status == s_schallenge){ 
+      _status = s_cproof;
+   }
+   else if(_status == s_cchallenge){
+      _status = s_sproof;
+   }
+   else{ // shouldn't get here garbage case
+	 disconnect();
+   }
+}
+
+/**********************************************************************************************
+ * authResponse  - Respond to challenge 
+ * 
+ *    
+ **********************************************************************************************/
+
+void TCPConn::authResponse() {
+   // If data on the socket, should be challenge from server
+   if (_connfd.hasData()) {
+      std::vector<uint8_t> buf;
+      // quit if getting the data fails
+      if (!getData(buf))
+         return;
+      // if the command is in an unexpected format 
+      if (!getCmdData(buf, c_auth, c_endauth)) {
+         std::stringstream msg;
+         msg << "Challenge String from server invalid format. Cannot authenticate.";
+         _server_log.writeLog(msg.str().c_str());
+         disconnect();
+         return;
+      }
+
+      // send encrypted data
+      wrapCmd(buf, c_auth, c_endauth);
+      sendEncryptedData(buf);
+      // set status to next step
+      if(_status == s_cproof){
+         _status = s_scheck;
+      }
+      else if(_status == s_sproof){
+         _status = s_ccheck;
+      }
+      else{ // shouldn't get here garbage case
+	 disconnect();
+      }
+   }
+}
+
+/**********************************************************************************************
+ * authCheck  - Check response to challenge 
+ * 
+ *    
+ **********************************************************************************************/
+
+void TCPConn::authCheck() {
+   // If data on the socket, should be challenge from server
+   if (_connfd.hasData()) {
+      std::vector<uint8_t> buf;
+      // quit if getting the data fails
+      if (!getEncryptedData(buf))
+         return;
+      // if the command is in an unexpected format 
+      if (!getCmdData(buf, c_auth, c_endauth)) {
+         std::stringstream msg;
+         msg << "Challenge String in invalid format. Cannot authenticate.";
+         _server_log.writeLog(msg.str().c_str());
+         disconnect();
+         return;
+      }
+
+      // Check against saved variable and move on or disconnect 
+      if(buf == _auth_challenge_s){ // case that the client response to challenge is valid
+         // set status to allow client to send challenge
+         _status = s_cchallenge;
+      }
+      else if(buf == _auth_challenge_c){ // case that server response to challenge is valid
+	 // switch status to carry on since both sides have validated (one of his status options)
+         _status = s_connected;
+      }
+      else{
+	disconnect();
+        return;
+      }
+
+   }
 }
 
 /**********************************************************************************************

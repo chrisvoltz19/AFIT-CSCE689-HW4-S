@@ -16,7 +16,9 @@ public:
    ~TCPConn();
 
    // The current status of the connection
-   enum statustype { s_none, s_connecting, s_connected, s_datatx, s_datarx, s_waitack, s_hasdata };
+   // Voltz add states for proper authentication (s_schallenge, s_cproof, s_scheck, s_cchallenge, s_sproof, s_ccheck)
+   enum statustype { s_none, s_connecting, s_connected, s_datatx, s_datarx, s_waitack, s_hasdata, s_schallenge, s_cproof, s_scheck, s_cchallenge, s_sproof, s_ccheck };
+
 
    statustype getStatus() { return _status; };
 
@@ -68,6 +70,17 @@ public:
    // Assign outgoing data and sets up the socket to manage the transmission
    void assignOutgoingData(std::vector<uint8_t> &data);
 
+   // Voltz added methods
+   // Method to create random bits and pass them in to passed in vector
+   void getRandBits(std::vector<uint8_t> dest);
+   // Method to send Challenge 
+   void authChallenge(std::vector<uint8_t> dest);
+   // Method to make sure the challenge is correctly responded to
+   void authResponse();
+   // Method to check response  
+   void authCheck();
+   
+
 protected:
    // Functions to execute various stages of a connection 
    void sendSID();
@@ -116,6 +129,10 @@ private:
    unsigned int _verbosity;
 
    LogMgr &_server_log;
+
+   // Voltz added variables
+   std::vector<uint8_t> _auth_challenge_s; // challenge from the server to the client 
+   std::vector<uint8_t> _auth_challenge_c; // challenge from the client to the server 
 };
 
 
