@@ -33,6 +33,7 @@ public:
    // attempts to check "simulator time" should use this function
    double getAdjustedTime();
 
+
 private:
 
    void addReplDronePlots(std::vector<uint8_t> &data);

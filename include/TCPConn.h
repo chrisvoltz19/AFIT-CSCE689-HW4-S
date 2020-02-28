@@ -72,13 +72,18 @@ public:
 
    // Voltz added methods
    // Method to create random bits and pass them in to passed in vector
-   void getRandBits(std::vector<uint8_t> dest);
+   void getRandBits(std::vector<uint8_t> &dest);
    // Method to send Challenge 
-   void authChallenge(std::vector<uint8_t> dest);
+   void sAuthChallenge(std::vector<uint8_t> &dest);
+   void cAuthChallenge(std::vector<uint8_t> &dest);
    // Method to make sure the challenge is correctly responded to
-   void authResponse();
+   void sAuthResponse();
+   void cAuthResponse();
    // Method to check response  
-   void authCheck();
+   void sAuthCheck();
+   void cAuthCheck();
+   // Method called to do the authentication
+   void handleAuthentication();
    
 
 protected:
@@ -133,6 +138,7 @@ private:
    // Voltz added variables
    std::vector<uint8_t> _auth_challenge_s; // challenge from the server to the client 
    std::vector<uint8_t> _auth_challenge_c; // challenge from the client to the server 
+   int authenticated; // check to see if authentication process has been completed
 };
 
 

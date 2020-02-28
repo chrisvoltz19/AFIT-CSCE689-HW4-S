@@ -73,6 +73,9 @@ TCPConn::TCPConn(LogMgr &server_log, CryptoPP::SecByteBlock &key, unsigned int v
 
    c_endsid = c_sid;
    c_endsid.insert(c_endsid.begin()+1, 1, slash);
+
+   // Voltz
+   authenticated = 0;
 }
 
 
@@ -179,41 +182,49 @@ void TCPConn::handleConnection() {
 
          // Client: Just connected, send our SID
          case s_connecting:
+            //std::cout << "Client SENDING SID" << std::endl;
             sendSID();
             break;
 
 	 // Server: Send first challenge Voltz
 	 case s_schallenge:
-            authChallenge(_auth_challenge_s);
+            //std::cout << "Server Sending Challenge" << std::endl;
+            sAuthChallenge(_auth_challenge_s);
             break;
 
          // Client: Encrypt first challenge and send it back Voltz
          case s_cproof:
-            authResponse();
+            //std::cout << "Client Proving itself" << std::endl;
+            cAuthResponse();
             break;
             
 	 // Server: Verifies the encrypted response from client Voltz
 	 case s_scheck:
-            authCheck();
+            //std::cout << "Server Verifying Client" << std::endl;
+            sAuthCheck();
             break;
 	    
          // Client: Sends challenge to server Voltz
          case s_cchallenge:
-            authChallenge(_auth_challenge_c);
+            //std::cout << "Client sending Challenge" << std::endl;
+            cAuthChallenge(_auth_challenge_c);
             break;
 
          // Server: respond with encrypted challenge and send it back Voltz
          case s_sproof:
-            authResponse();
+            //std::cout << "Server Proving itself" << std::endl;
+            sAuthResponse();
             break;
 
          // Client: Verify the encrypted response from server Voltz
          case s_ccheck:
-            authCheck();
+            //std::cout << "Client Verifying Server" << std::endl;
+            cAuthCheck();
 	    break;
 
          // Server: Wait for the SID from a newly-connected client, then send our SID
          case s_connected:
+            //std::cout << "Server Recieve SID" << std::endl;
             waitForSID();
             break;
    
@@ -237,7 +248,8 @@ void TCPConn::handleConnection() {
             break;
 
          default:
-            throw std::runtime_error("Invalid connection status!");
+            std::cout << _status << std::endl;
+            throw std::runtime_error("Invalid connection status in connection!");
             break;
       }
    } catch (socket_error &e) {
@@ -271,7 +283,7 @@ void TCPConn::sendSID() {
  *    
  **********************************************************************************************/
 
-void TCPConn::getRandBits(std::vector<uint8_t> dest) {
+void TCPConn::getRandBits(std::vector<uint8_t> &dest) {
    int size = 16;
    // initialize c++ way of creating random numbers 
    std::default_random_engine byteGen{std::random_device{}()};
@@ -288,17 +300,22 @@ void TCPConn::getRandBits(std::vector<uint8_t> dest) {
    for(auto & b : dest){
 	b = dist(byteGen);
    }
-    
+
 }
 
 /**********************************************************************************************
- * authChallenge  - create a challenge and send it to other side of connection Voltz
+ * sAuthChallenge  - create a challenge and send it to other side of connection Voltz
  * 
  *             dest: the vector that the challenge will be stored in (server or client challenge)
  *    
  **********************************************************************************************/
 
-void TCPConn::authChallenge(std::vector<uint8_t> dest) {
+void TCPConn::sAuthChallenge(std::vector<uint8_t> &dest) {
+   // clear buffer if anything is there
+   if (_connfd.hasData()) {
+   std::vector<uint8_t> holder;   
+   getData(holder);
+   }
    //  put random bits into challenge 
    getRandBits(dest);
    std::vector<uint8_t> buf(dest.begin(), dest.end()); 
@@ -307,31 +324,64 @@ void TCPConn::authChallenge(std::vector<uint8_t> dest) {
    wrapCmd(buf, c_auth, c_endauth);
    sendData(buf);
 
+/*
+         std::cout << "_auth_challenge_s IS: " << std::endl;
+         for(auto i : _auth_challenge_s)
+         {
+            std::cout << i;// << std::endl;
+         }
+         std::cout << std::endl;
+*/
+
    // set the status to the next step
-   if(_status == s_schallenge){ 
-      _status = s_cproof;
-   }
-   else if(_status == s_cchallenge){
-      _status = s_sproof;
-   }
-   else{ // shouldn't get here garbage case
-	 disconnect();
-   }
+   _status = s_scheck;
+
 }
 
 /**********************************************************************************************
- * authResponse  - Respond to challenge 
+ * cAuthChallenge  - create a challenge and send it to other side of connection Voltz
+ * 
+ *             dest: the vector that the challenge will be stored in (server or client challenge)
+ *    
+ **********************************************************************************************/
+
+void TCPConn::cAuthChallenge(std::vector<uint8_t> &dest) {
+   // clear buffer if anything is there
+   if (_connfd.hasData()) {
+      std::vector<uint8_t> holder;
+      getData(holder);
+   
+      //  put random bits into challenge 
+      getRandBits(dest);
+      std::vector<uint8_t> buf(dest.begin(), dest.end()); 
+   
+      // send the info to the attempted connection, not encrypted 
+      wrapCmd(buf, c_auth, c_endauth);
+      sendData(buf);
+
+      // set the status to the next step
+      _status = s_ccheck;
+   }
+
+}
+
+/**********************************************************************************************
+ * sAuthResponse  - Gets the Client challenge from the socket and responds to challenge 
  * 
  *    
  **********************************************************************************************/
 
-void TCPConn::authResponse() {
+void TCPConn::sAuthResponse() {
    // If data on the socket, should be challenge from server
    if (_connfd.hasData()) {
       std::vector<uint8_t> buf;
+
       // quit if getting the data fails
-      if (!getData(buf))
-         return;
+      if (!getData(buf)){
+         std::cout << "FAILED TO GET DATA" << std::endl;
+         return;   
+      }                           
+
       // if the command is in an unexpected format 
       if (!getCmdData(buf, c_auth, c_endauth)) {
          std::stringstream msg;
@@ -345,25 +395,94 @@ void TCPConn::authResponse() {
       wrapCmd(buf, c_auth, c_endauth);
       sendEncryptedData(buf);
       // set status to next step
-      if(_status == s_cproof){
-         _status = s_scheck;
-      }
-      else if(_status == s_sproof){
-         _status = s_ccheck;
-      }
-      else{ // shouldn't get here garbage case
-	 disconnect();
-      }
+      _status = s_connected;
    }
 }
 
 /**********************************************************************************************
- * authCheck  - Check response to challenge 
+ * cAuthResponse  - Gets the challenge from the socket and responds to challenge 
  * 
  *    
  **********************************************************************************************/
 
-void TCPConn::authCheck() {
+void TCPConn::cAuthResponse() {
+   // If data on the socket, should be challenge from server
+   if (_connfd.hasData()) {
+      std::vector<uint8_t> buf;
+
+      // quit if getting the data fails
+      if (!getData(buf)){
+         std::cout << "FAILED TO GET DATA" << std::endl;
+         return;   
+      }                           
+
+      // if the command is in an unexpected format 
+      if (!getCmdData(buf, c_auth, c_endauth)) {
+         std::stringstream msg;
+         msg << "Challenge String from server invalid format. Cannot authenticate.";
+         _server_log.writeLog(msg.str().c_str());
+         std::cout << msg.str() << std::endl; //Voltz
+         disconnect();
+         return;
+      }
+
+      // send encrypted data
+      wrapCmd(buf, c_auth, c_endauth);
+      sendEncryptedData(buf);
+      // set status to next step
+      _status = s_cchallenge;
+   }
+}
+
+/**********************************************************************************************
+ * sAuthCheck  - Check response to challenge 
+ * 
+ *    
+ **********************************************************************************************/
+
+void TCPConn::sAuthCheck() {
+   // If data on the socket, should be response from client
+   if (_connfd.hasData()) {
+      std::vector<uint8_t> buf;
+      // quit if getting the data fails
+      if (!getEncryptedData(buf))
+         return;
+      // if the command is in an unexpected format 
+      if (!getCmdData(buf, c_auth, c_endauth)) {
+         std::stringstream msg;
+         msg << "Challenge String in invalid format. Cannot authenticate.";
+         _server_log.writeLog(msg.str().c_str());
+         disconnect();
+         return;
+      }
+
+      // Check against saved variable and move on or disconnect 
+      // TODO: Something wrong here maybe
+      if(buf == _auth_challenge_s){ // case that the client response to challenge is valid
+         // set status to allow client to send challenge
+         _status = s_sproof;
+         // send something across so client knows to continue
+         std::vector <uint8_t> buf;
+         buf.emplace_back(1);
+         wrapCmd(buf, c_auth, c_endauth);
+         sendData(buf);
+      }
+      else{
+        std::cout << "Failed the server authorization check. Exiting" << std::endl;
+	disconnect();
+        return;
+      }
+
+   }
+}
+
+/**********************************************************************************************
+ * cAuthCheck  - Check response to challenge 
+ * 
+ *    
+ **********************************************************************************************/
+
+void TCPConn::cAuthCheck() {
    // If data on the socket, should be challenge from server
    if (_connfd.hasData()) {
       std::vector<uint8_t> buf;
@@ -380,15 +499,12 @@ void TCPConn::authCheck() {
       }
 
       // Check against saved variable and move on or disconnect 
-      if(buf == _auth_challenge_s){ // case that the client response to challenge is valid
-         // set status to allow client to send challenge
-         _status = s_cchallenge;
-      }
-      else if(buf == _auth_challenge_c){ // case that server response to challenge is valid
-	 // switch status to carry on since both sides have validated (one of his status options)
-         _status = s_connected;
+      if(buf == _auth_challenge_c){ // case that server response to challenge is valid
+	 // switch status to carry on since both sides have validated 
+         _status = s_connecting;
       }
       else{
+        std::cout << "Failed a authorization check. Exiting" << std::endl;
 	disconnect();
         return;
       }
@@ -422,12 +538,14 @@ void TCPConn::waitForSID() {
       std::string node(buf.begin(), buf.end());
       setNodeID(node.c_str());
 
+
       // Send our Node ID
       buf.assign(_svr_id.begin(), _svr_id.end());
       wrapCmd(buf, c_sid, c_endsid);
       sendData(buf);
 
       _status = s_datarx;
+
    }
 }
 
@@ -723,8 +841,8 @@ void TCPConn::getInputData(std::vector<uint8_t> &buf) {
 
 void TCPConn::connect(const char *ip_addr, unsigned short port) {
 
-   // Set the status to connecting
-   _status = s_connecting;
+   // Set the status to initial client proof Voltz
+   _status = s_cproof;
 
    // Try to connect
    if (!_connfd.connectTo(ip_addr, port))
@@ -735,8 +853,8 @@ void TCPConn::connect(const char *ip_addr, unsigned short port) {
 
 // Same as above, but ip_addr and port are in network (big endian) format
 void TCPConn::connect(unsigned long ip_addr, unsigned short port) {
-   // Set the status to connecting
-   _status = s_connecting;
+   // Set the status to initial client proof Voltz
+   _status = s_cproof;
 
    if (!_connfd.connectTo(ip_addr, port))
       throw socket_error("TCP Connection failed!");

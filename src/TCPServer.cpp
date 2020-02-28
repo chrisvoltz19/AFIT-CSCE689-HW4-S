@@ -145,6 +145,7 @@ TCPConn *TCPServer::handleSocket() {
       _server_log.writeLog(msg);
 
       // Send an authentication string in cleartext
+      //new_conn->handleAuthentication();
             
 
       return new_conn;
