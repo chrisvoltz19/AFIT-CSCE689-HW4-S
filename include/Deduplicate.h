@@ -32,16 +32,17 @@ public:
         
 private:
         bool checkDup(DronePlot & plot1, DronePlot plot2);
-        void findTimeSkew() = 0;
-        void fixTimeSkew(sOffset s) = 0; // this method corrects to the replsvr that it is on
-        void correctToLeader() = 0; // this method corrects at the end to make all consistent to leader at the end
+        void findTimeSkew();
+        void fixTimeSkew(sOffset s); // this method corrects to the replsvr that it is on
+        void correctToLeader(); // this method corrects at the end to make all consistent to leader at the end
         
         
         // Variables
-        DronePlotDB &_plotDB; // Holds all the drone plots
+        DronePlotDB &_plotdb; // Holds all the drone plots
         std::vector<sOffset> _diffs; // Holds all the sOffset objects for use
         int _mySID; // the SID of the server
-        sOffset _leader; // leader information      
+        sOffset _leader; // leader information   
+
         
 };
 

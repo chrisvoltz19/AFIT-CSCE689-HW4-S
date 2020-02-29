@@ -8,7 +8,7 @@
 #include "strfuncts.h"
 #include "Deduplicate.h"
 
-Deduplicate::Deduplicate(DronePlot &plotdb, unsigned int SID) : _plotdb(plotdb), _mySID(SID)
+Deduplicate::Deduplicate(DronePlotDB &plotdb, unsigned int SID) : _plotdb(plotdb), _mySID(SID)
 {
 }
 
@@ -29,14 +29,15 @@ void Deduplicate::removeDuplicates()
         // 2-step for loop through all of the list 
         for(auto i = _plotdb.begin(); i != _plotdb.end(); i++)
         {
-                auto & cmp1 = *i; // cmp1 has what is pointed at by i
-                for(auto j = i + 1; j != _plotdb.end(); j++)
+                for(auto j = i; j != _plotdb.end(); j++)
                 {
-                        auto & cmp2 = *j;
-                        if(checkDup(cmp1, cmp2)) // found a duplicate
+                        //auto & cmp2 = *j;
+                        if((i != j) && checkDup(*i, *j)) // found a duplicate
                         {
                                 // erase the duplciate
                                 _plotdb.erase(j);
+				// reset j to make sure don't miss any
+				j = i;
                                 
                         }
                 }
@@ -51,8 +52,13 @@ void Deduplicate::removeDuplicates()
  * Returns: true if it is a duplicate and false if it is not 
  *             
  *******************************************************************************************/
-bool Deduplicate::checkDup(DronePlot & plot1, DronePlot & plot2)
+bool Deduplicate::checkDup(DronePlot & plot1, DronePlot plot2)
 {
+	// check timestamp (if greater difference than 20 not the same point)
+	if(plot1.timestamp > plot2.timestamp + 20 || plot1.timestamp < plot2.timestamp - 20)
+	{
+		return false;
+	}
         if(plot1.drone_id != plot2.drone_id)
         {
                 return false;
@@ -67,3 +73,8 @@ bool Deduplicate::checkDup(DronePlot & plot1, DronePlot & plot2)
         }
         return true;
 }
+
+
+
+
+

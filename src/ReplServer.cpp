@@ -219,19 +219,20 @@ void ReplServer::addSingleDronePlot(std::vector<uint8_t> &data) {
 
    tmp_plot.deserialize(data);
 
-   // check the data for duplicates Voltz
-   if(_dedup.determineDuplicate(tmp_plot)){
-
-      _plotdb.addPlot(tmp_plot.drone_id, tmp_plot.node_id, tmp_plot.timestamp, tmp_plot.latitude,
+   _plotdb.addPlot(tmp_plot.drone_id, tmp_plot.node_id, tmp_plot.timestamp, tmp_plot.latitude,
                                                          tmp_plot.longitude);
-   }
+
+   // check the data for duplicates Voltz
+   _dedup.removeDuplicates();   
    
 }
 
 
 void ReplServer::shutdown() {
    // do the final check Voltz
-   //_dedup.finalDetermination();
+   _dedup.removeDuplicates();  
+   _dedup.printStats(); 
+   
    _shutdown = true;
 }
 
