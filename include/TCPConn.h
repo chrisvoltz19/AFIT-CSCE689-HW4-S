@@ -138,7 +138,7 @@ private:
    // Voltz added variables
    std::vector<uint8_t> _auth_challenge_s; // challenge from the server to the client 
    std::vector<uint8_t> _auth_challenge_c; // challenge from the client to the server 
-   int authenticated; // check to see if authentication process has been completed
+
 };
 
 

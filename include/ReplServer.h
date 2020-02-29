@@ -5,6 +5,7 @@
 #include <memory>
 #include "QueueMgr.h"
 #include "DronePlotDB.h"
+#include "Deduplicate.h"
 
 /***************************************************************************************
  * ReplServer - class that manages replication between servers. The data is automatically
@@ -64,6 +65,10 @@ private:
    // Used to bind the server
    std::string _ip_addr;
    unsigned short _port;
+
+
+   // Voltz variables
+   Deduplicate _dedup; // object to handle dedup
 };
 
 

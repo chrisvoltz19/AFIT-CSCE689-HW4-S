@@ -74,8 +74,6 @@ TCPConn::TCPConn(LogMgr &server_log, CryptoPP::SecByteBlock &key, unsigned int v
    c_endsid = c_sid;
    c_endsid.insert(c_endsid.begin()+1, 1, slash);
 
-   // Voltz
-   authenticated = 0;
 }
 
 
@@ -296,9 +294,9 @@ void TCPConn::getRandBits(std::vector<uint8_t> &dest) {
       dest.emplace_back(0);
    }   
 
-   // assign the random charavters 
-   for(auto & b : dest){
-	b = dist(byteGen);
+   // assign the random characters 
+   for(auto & r : dest){
+	r = dist(byteGen);
    }
 
 }
@@ -306,7 +304,7 @@ void TCPConn::getRandBits(std::vector<uint8_t> &dest) {
 /**********************************************************************************************
  * sAuthChallenge  - create a challenge and send it to other side of connection Voltz
  * 
- *             dest: the vector that the challenge will be stored in (server or client challenge)
+ *             dest: the vector that the challenge will be stored in (server challenge)
  *    
  **********************************************************************************************/
 
@@ -339,14 +337,14 @@ void TCPConn::sAuthChallenge(std::vector<uint8_t> &dest) {
 }
 
 /**********************************************************************************************
- * cAuthChallenge  - create a challenge and send it to other side of connection Voltz
+ * cAuthChallenge  - create a challenge and send it to the server Voltz
  * 
- *             dest: the vector that the challenge will be stored in (server or client challenge)
+ *             dest: the vector that the challenge will be stored in (client challenge)
  *    
  **********************************************************************************************/
 
 void TCPConn::cAuthChallenge(std::vector<uint8_t> &dest) {
-   // clear buffer if anything is there
+   // wait for information
    if (_connfd.hasData()) {
       std::vector<uint8_t> holder;
       getData(holder);
@@ -400,7 +398,7 @@ void TCPConn::sAuthResponse() {
 }
 
 /**********************************************************************************************
- * cAuthResponse  - Gets the challenge from the socket and responds to challenge 
+ * cAuthResponse  - Gets the Server challenge from the socket and responds to challenge 
  * 
  *    
  **********************************************************************************************/
@@ -457,15 +455,14 @@ void TCPConn::sAuthCheck() {
       }
 
       // Check against saved variable and move on or disconnect 
-      // TODO: Something wrong here maybe
       if(buf == _auth_challenge_s){ // case that the client response to challenge is valid
          // set status to allow client to send challenge
          _status = s_sproof;
          // send something across so client knows to continue
-         std::vector <uint8_t> buf;
-         buf.emplace_back(1);
-         wrapCmd(buf, c_auth, c_endauth);
-         sendData(buf);
+         std::vector <uint8_t> buff;
+         buff.emplace_back(1);
+         wrapCmd(buff, c_auth, c_endauth);
+         sendData(buff);
       }
       else{
         std::cout << "Failed the server authorization check. Exiting" << std::endl;

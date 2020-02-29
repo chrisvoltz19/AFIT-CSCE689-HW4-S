@@ -21,7 +21,8 @@ ReplServer::ReplServer(DronePlotDB &plotdb, float time_mult)
                                _time_mult(time_mult),
                                _verbosity(1),
                                _ip_addr("127.0.0.1"),
-                               _port(9999)
+                               _port(9999),
+                               _dedup(plotdb, 1) // would like to change the 1 to the actual server 
 {
 }
 
@@ -33,7 +34,8 @@ ReplServer::ReplServer(DronePlotDB &plotdb, const char *ip_addr, unsigned short 
                                   _time_mult(time_mult), 
                                   _verbosity(verbosity),
                                   _ip_addr(ip_addr),
-                                  _port(port)
+                                  _port(port),
+                                  _dedup(plotdb, 1)
 
 {
 }
@@ -217,12 +219,19 @@ void ReplServer::addSingleDronePlot(std::vector<uint8_t> &data) {
 
    tmp_plot.deserialize(data);
 
-   _plotdb.addPlot(tmp_plot.drone_id, tmp_plot.node_id, tmp_plot.timestamp, tmp_plot.latitude,
+   // check the data for duplicates Voltz
+   if(_dedup.determineDuplicate(tmp_plot)){
+
+      _plotdb.addPlot(tmp_plot.drone_id, tmp_plot.node_id, tmp_plot.timestamp, tmp_plot.latitude,
                                                          tmp_plot.longitude);
+   }
+   
 }
 
 
 void ReplServer::shutdown() {
+   // do the final check Voltz
+   //_dedup.finalDetermination();
    _shutdown = true;
 }
 
