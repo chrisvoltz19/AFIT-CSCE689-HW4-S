@@ -32,11 +32,12 @@ public:
 	void setValues(unsigned int sSID, unsigned int lead); // set SID values after we get some     
      	void printValues();  
         void correctToLeader(); // this method corrects at the end to make all consistent to leader at the end
+        void fixTimeSkew(DronePlot & plot);
         
 
 private:
         bool checkDup(DronePlot & plot1, DronePlot & plot2);
-        bool findTimeSkew(DronePlot & diffPlot, DronePlot & mePlot);
+        bool findTimeSkew(DronePlot diffPlot, DronePlot mePlot);
         void fixPrevTimeSkew(sOffset s); // this method corrects to the replsvr that it is on
         
         

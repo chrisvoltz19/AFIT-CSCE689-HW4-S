@@ -51,9 +51,13 @@ void Deduplicate::removeDuplicates()
                         //auto & cmp2 = *j;
                         if((i != j) && checkDup(*i, *j)) // found a duplicate
                         {
-                                if((*i) == _mySID)
+                                if(((*i).node_id) == _mySID)
                                 {
-                                    findTimeSkew(&(*j), &(*i));
+                                    findTimeSkew((*j), (*i));
+                                }
+                                else if(((*j).node_id) == _mySID)
+                                {
+                                    findTimeSkew((*i), (*j));
                                 }
                                 // erase the duplciate
                                 _plotdb.erase(j);
@@ -127,7 +131,7 @@ void Deduplicate::correctToLeader()
  *  
  *             
  *******************************************************************************************/
-bool findTimeSkew(DronePlot diffPlot, DronePlot mePlot)
+bool Deduplicate::findTimeSkew(DronePlot diffPlot, DronePlot mePlot)
 {
         for(auto i : _diffs)
         {
@@ -176,7 +180,7 @@ void Deduplicate::fixTimeSkew(DronePlot & plot)
         for(auto i : _diffs)
         {
                 // the node id is already in _diffs so we don't need to find it
-                if(i.SID == diffPlot.node_id)
+                if(i.SID == plot.node_id)
                 {
                         plot.timestamp = static_cast<time_t>(static_cast<double>(plot.timestamp) - i.offset);
                 }

@@ -233,6 +233,9 @@ void ReplServer::addSingleDronePlot(std::vector<uint8_t> &data) {
 
    tmp_plot.deserialize(data);
 
+   // adjest for time skew (if known)
+   _dedup.fixTimeSkew(tmp_plot);
+
    _plotdb.addPlot(tmp_plot.drone_id, tmp_plot.node_id, tmp_plot.timestamp, tmp_plot.latitude,
                                                          tmp_plot.longitude);
 
@@ -246,7 +249,8 @@ void ReplServer::shutdown() {
    // do the final check Voltz
    _dedup.removeDuplicates();  
    _dedup.printValues();
-   //std::cout << _queue.getServerID() << std::endl;
+   // redo time stamps according to "leader" time
+   _dedup.correctToLeader();
    
    _shutdown = true;
 }
@@ -267,7 +271,7 @@ void ReplServer::election() {
       unsigned int potentialInt = std::stoi(potential.substr(2));
       candidates.emplace_back(potentialInt);
    }
-   _leader = 9999;
+   _leader = mySID;
    for( auto can : candidates){
       if(can < _leader)
       {
