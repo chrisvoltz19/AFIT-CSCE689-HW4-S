@@ -73,6 +73,7 @@ private:
    unsigned int _leader; // SID of the leader 
    Deduplicate _dedup; // object to handle dedup
    int sentInfo = 0; // check to see if sent info to Dedup
+   unsigned int _numServers; // number of servers in scenario
 };
 
 

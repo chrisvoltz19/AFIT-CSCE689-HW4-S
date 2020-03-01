@@ -21,7 +21,7 @@ Deduplicate::~Deduplicate()
  *                      
  *             
  *******************************************************************************************/
-void Deduplicate::setValues(unsigned int sSID, unsigned int lead)
+void Deduplicate::setValues(unsigned int sSID, unsigned int lead, unsigned int numServers)
 {
         // set this server's sOffset
       	sOffset s; 
@@ -32,6 +32,8 @@ void Deduplicate::setValues(unsigned int sSID, unsigned int lead)
 
         // set the leader SID
 	_leaderSID = lead;
+        // set the number of servers
+        _totalServers = numServers;
 }
 
 /********************************************************************************************
@@ -48,17 +50,47 @@ void Deduplicate::removeDuplicates()
         {
                 for(auto j = i; j != _plotdb.end(); j++)
                 {
-                        //auto & cmp2 = *j;
                         if((i != j) && checkDup(*i, *j)) // found a duplicate
                         {
-                                if(((*i).node_id) == _mySID)
+                                if(((*i).node_id) == _mySID) // i has localSID
                                 {
                                     findTimeSkew((*j), (*i));
                                 }
-                                else if(((*j).node_id) == _mySID)
+                                else if(((*j).node_id) == _mySID) // j has localSID
                                 {
                                     findTimeSkew((*i), (*j));
+				    // also compare against all others, have to because j gets erased
+                                    if(_diffs.size() < _totalServers) // haven't found all entries
+			            {
+                                    	// compare j against everything else and if a match is found get time skew
+                                        for(auto f = j; f!= _plotdb.end(); f++)
+					{
+						if((f != j) && checkDup(*f, *j))
+						{
+							findTimeSkew((*f), (*j));
+							f = j;	
+						}
+					}
+                                    }
                                 }
+///*
+				else if(_diffs.size() < _totalServers) // j and i have nonlocal SIDs
+				{
+					for(auto k : _diffs)
+       					{
+                				if(k.SID == ((*i).node_id)) //i offset was prev found so it is corrected to local
+                				{
+                        				findHardSkew((*i),(*j));
+							break;
+                				}
+						else if(k.SID == ((*j).node_id)) //j offset was prev found so it is now local time
+                				{
+                        				findHardSkew((*j),(*i));
+							break;
+                				}
+        				}
+				}
+//*/
                                 // erase the duplciate
                                 _plotdb.erase(j);
 				// reset j to make sure don't miss any
@@ -144,12 +176,40 @@ bool Deduplicate::findTimeSkew(DronePlot diffPlot, DronePlot mePlot)
         // the information for this node is not populated so find it
         sOffset s; 
         s.SID = diffPlot.node_id;
-        s.offset = static_cast<double>(mePlot.timestamp - diffPlot.timestamp);
+        s.offset = static_cast<double>(diffPlot.timestamp - mePlot.timestamp);
         _diffs.emplace_back(s);
+        std::cout << "POPULATED INFORMATION FOR OFFSET FOR:"<< diffPlot.node_id << " WITH OFFSET:" << s.offset << std::endl;
         // fix previous entries with the different node id 
         fixPrevTimeSkew(s); 
         return true;
             
+}
+
+/********************************************************************************************
+ * findHardSkew - compares a piece of data with a known timestamp against one with an unknown 
+ *                to find the skew, used for when 1 server has almost no data to compare
+ *                against others
+ *             
+ *******************************************************************************************/
+bool Deduplicate::findHardSkew(DronePlot knownPlot, DronePlot unknownPlot)
+{
+	for(auto i : _diffs)
+        {
+                // the node id is already in _diffs so we don't need to find it
+                if(i.SID == unknownPlot.node_id)
+                {
+                        return false;
+                }
+        }
+        // the information for this node is not populated so find it
+        sOffset s; 
+        s.SID = unknownPlot.node_id;
+        s.offset = static_cast<double>(unknownPlot.timestamp - knownPlot.timestamp); //- s.offset)); // don't need to subtract should already be corrected
+        _diffs.emplace_back(s);
+        std::cout << "POPULATED INFORMATION FOR HARD OFFSET FOR:"<< unknownPlot.node_id << " WITH OFFSET:" << s.offset << std::endl;
+        // fix previous entries with the different node id 
+        fixPrevTimeSkew(s); 
+        return true;
 }
 
 /********************************************************************************************
@@ -159,15 +219,19 @@ bool Deduplicate::findTimeSkew(DronePlot diffPlot, DronePlot mePlot)
  *******************************************************************************************/
 void Deduplicate::fixPrevTimeSkew(sOffset s)
 {
+      	std::cout << "*********** CORRECTING PREVIOUS **************** " << std::endl;
         for(auto i = _plotdb.begin(); i != _plotdb.end(); i++)
         {
                 // case that the entry needs to be updated 
                 if((*i).node_id == s.SID)
                 {
                         // correct a timestamp
+			std::cout << "PREV TIMESTAMP!!!!!: " << (*i).timestamp << std::endl;
                         (*i).timestamp = static_cast<time_t>(static_cast<double>((*i).timestamp) - s.offset);
+			std::cout << "New TIMESTAMP!!!!!: " << (*i).timestamp << std::endl;
                 }
         }
+        std::cout << "*********** DONE CORRECTING PREVIOUS **************** " << std::endl;
 }
 
 /********************************************************************************************
@@ -189,8 +253,16 @@ void Deduplicate::fixTimeSkew(DronePlot & plot)
 
 void Deduplicate::printValues()
 {
+        std::cout << "The number of servers in this scenario is:" << _totalServers << std::endl;
 	std::cout << "The SID of this server is:" << _mySID << std::endl;
         std::cout << "The leader for this run is:" << _leaderSID << std::endl;
+
+        std::cout << "FINAL SID TO OFFSET RESULTS!!!!!!!!!!!" << std::endl;
+        for(auto i : _diffs)
+        {
+                std::cout << "SID:" << i.SID << " OFFSET:" << i.offset << std::endl;
+        }
+
 
 }
 
