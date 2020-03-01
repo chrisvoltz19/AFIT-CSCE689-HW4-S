@@ -100,7 +100,7 @@ void ReplServer::replicate() {
          // get the leader 
          election();
          // send the vital information
-         _dedup.setValues(mySID, _leader);
+         _dedup.setValues(mySID, _leader, _numServers);
          // make sure don't do again
          sentInfo = 1;
       }  
@@ -234,7 +234,9 @@ void ReplServer::addSingleDronePlot(std::vector<uint8_t> &data) {
    tmp_plot.deserialize(data);
 
    // adjest for time skew (if known)
+   //std::cout << "PRE TRANSFORM TIMESTAMP: " << 	tmp_plot.timestamp << std::endl;
    _dedup.fixTimeSkew(tmp_plot);
+   //std::cout << "!!POST TRANSFORM TIMESTAMP: " << 	tmp_plot.timestamp << std::endl;
 
    _plotdb.addPlot(tmp_plot.drone_id, tmp_plot.node_id, tmp_plot.timestamp, tmp_plot.latitude,
                                                          tmp_plot.longitude);
@@ -248,9 +250,9 @@ void ReplServer::addSingleDronePlot(std::vector<uint8_t> &data) {
 void ReplServer::shutdown() {
    // do the final check Voltz
    _dedup.removeDuplicates();  
-   _dedup.printValues();
+   //_dedup.printValues();
    // redo time stamps according to "leader" time
-   _dedup.correctToLeader();
+   //_dedup.correctToLeader();
    
    _shutdown = true;
 }
@@ -265,11 +267,13 @@ void ReplServer::shutdown() {
 void ReplServer::election() {
    std::vector<unsigned int> candidates;
    candidates.emplace_back(mySID);
+   _numServers = 1;
    std::vector<std::tuple<std::string, unsigned long, unsigned short>> options = _queue.getServerList();
    for (unsigned int i=0; i<options.size(); i++) {
       std::string potential = std::get<0>(options[i]).c_str();
       unsigned int potentialInt = std::stoi(potential.substr(2));
       candidates.emplace_back(potentialInt);
+      _numServers++; 
    }
    _leader = mySID;
    for( auto can : candidates){
