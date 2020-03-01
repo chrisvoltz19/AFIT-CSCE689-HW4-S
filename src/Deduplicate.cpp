@@ -8,12 +8,31 @@
 #include "strfuncts.h"
 #include "Deduplicate.h"
 
-Deduplicate::Deduplicate(DronePlotDB &plotdb, unsigned int SID) : _plotdb(plotdb), _mySID(SID)
+Deduplicate::Deduplicate(DronePlotDB &plotdb) : _plotdb(plotdb)
 {
 }
 
 Deduplicate::~Deduplicate()
 {
+}
+
+/********************************************************************************************
+ * setValues - Gets this server's SID and the leader and sets variables 
+ *                      
+ *             
+ *******************************************************************************************/
+void Deduplicate::setValues(unsigned int sSID, unsigned int lead)
+{
+        // set this server's sOffset
+      	sOffset s; 
+     	s.SID = sSID;
+      	s.offset = 0;
+     	_diffs.emplace_back(s);
+	_mySID = sSID;
+
+        // set the leader SID
+	_leaderSID = lead;
+	
 }
 
 
@@ -43,6 +62,8 @@ void Deduplicate::removeDuplicates()
                 }
                 
         }
+        // sort by timestamp
+	_plotdb.sortByTime();
 
 }
 
@@ -72,6 +93,13 @@ bool Deduplicate::checkDup(DronePlot & plot1, DronePlot plot2)
                 return false;
         }
         return true;
+}
+
+void Deduplicate::printValues()
+{
+	std::cout << "The SID of this server is:" << _mySID << std::endl;
+        std::cout << "The leader for this run is:" << _leaderSID << std::endl;
+
 }
 
 

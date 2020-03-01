@@ -55,6 +55,9 @@ public:
    // Overloaded to prevent this function from being used
    virtual void runServer();
 
+   // Voltz method 
+   std::vector<std::tuple<std::string, unsigned long, unsigned short>> getServerList() { return _server_list; };
+
 private:
 
    // Launches a connection to the other server from queue data

@@ -22,7 +22,7 @@ ReplServer::ReplServer(DronePlotDB &plotdb, float time_mult)
                                _verbosity(1),
                                _ip_addr("127.0.0.1"),
                                _port(9999),
-                               _dedup(plotdb, 1) // would like to change the 1 to the actual server 
+                               _dedup(plotdb)
 {
 }
 
@@ -35,7 +35,7 @@ ReplServer::ReplServer(DronePlotDB &plotdb, const char *ip_addr, unsigned short 
                                   _verbosity(verbosity),
                                   _ip_addr(ip_addr),
                                   _port(port),
-                                  _dedup(plotdb, 1)
+                                  _dedup(plotdb)
 
 {
 }
@@ -72,7 +72,6 @@ void ReplServer::replicate(const char *ip_addr, unsigned short port) {
 }
 
 void ReplServer::replicate() {
-
    // Track when we started the server
    _start_time = time(NULL);
    _last_repl = 0;
@@ -89,7 +88,22 @@ void ReplServer::replicate() {
    while (!_shutdown) {
 
       // Check for new connections, process existing connections, and populate the queue as applicable
-      _queue.handleQueue();     
+      _queue.handleQueue();   
+
+      // send vital information to the Dedup object Voltz
+      if(sentInfo == 0)
+      {
+         // get the SID of the server 
+         std::string sidStr = _queue.getServerID();
+         //std::cout << sidStr.substr(2) << std::endl;
+         mySID = std::stoi(sidStr.substr(2));
+         // get the leader 
+         election();
+         // send the vital information
+         _dedup.setValues(mySID, _leader);
+         // make sure don't do again
+         sentInfo = 1;
+      }  
 
       // See if it's time to replicate and, if so, go through the database, identifying new plots
       // that have not been replicated yet and adding them to the queue for replication
@@ -231,9 +245,38 @@ void ReplServer::addSingleDronePlot(std::vector<uint8_t> &data) {
 void ReplServer::shutdown() {
    // do the final check Voltz
    _dedup.removeDuplicates();  
-   _dedup.printStats(); 
+   _dedup.printValues();
+   //std::cout << _queue.getServerID() << std::endl;
    
    _shutdown = true;
+}
+
+/**********************************************************************************************
+ * election - Performs an "election" to determine a leader to sync on
+ *            This implementation is to do so with on sending of packets
+ *            It simply picks the lowest SID 
+ *
+ **********************************************************************************************/
+
+void ReplServer::election() {
+   std::vector<unsigned int> candidates;
+   candidates.emplace_back(mySID);
+   std::vector<std::tuple<std::string, unsigned long, unsigned short>> options = _queue.getServerList();
+   for (unsigned int i=0; i<options.size(); i++) {
+      std::string potential = std::get<0>(options[i]).c_str();
+      unsigned int potentialInt = std::stoi(potential.substr(2));
+      candidates.emplace_back(potentialInt);
+   }
+   _leader = 9999;
+   for( auto can : candidates){
+      if(can < _leader)
+      {
+         _leader = can;
+      }
+   }
+
+    //std::cout << "FINALLY GOT A LEADER!!11 :" << _leader << std::endl;
+   
 }
 
 
