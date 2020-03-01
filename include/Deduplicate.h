@@ -11,7 +11,7 @@ typedef struct sOffset
 {
         unsigned int SID; //SID of server that found plot
         double offset; // offset of that 
-        int isLeader = 0; // 1 if leader 
+        //int isLeader = 0; // 1 if leader 
         
 }sOffset;
 
@@ -30,14 +30,14 @@ public:
         ~Deduplicate();
         void removeDuplicates();
 	void setValues(unsigned int sSID, unsigned int lead); // set SID values after we get some     
-     	void printValues();    
+     	void printValues();  
+        void correctToLeader(); // this method corrects at the end to make all consistent to leader at the end
+        
 
 private:
-        bool checkDup(DronePlot & plot1, DronePlot plot2);
-        void findTimeSkew();
-        void fixTimeSkew(sOffset s); // this method corrects to the replsvr that it is on
-        void correctToLeader(); // this method corrects at the end to make all consistent to leader at the end
-        void fixToLeaderTime(); 
+        bool checkDup(DronePlot & plot1, DronePlot & plot2);
+        bool findTimeSkew(DronePlot & diffPlot, DronePlot & mePlot);
+        void fixPrevTimeSkew(sOffset s); // this method corrects to the replsvr that it is on
         
         
         // Variables
